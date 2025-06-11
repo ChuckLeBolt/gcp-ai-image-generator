@@ -2,6 +2,7 @@ import os
 import io
 import uuid
 import requests
+import sys # Import the sys module to flush output
 
 from flask import Flask, request, jsonify
 from PIL import Image
@@ -11,38 +12,60 @@ from vertexai.generative_models import GenerativeModel
 from vertexai.vision_models import ImageGenerationModel
 from google.cloud import storage
 
-# --- Configuration and Initialization ---
+# --- Configuration and Initialization with DIAGNOSTIC LOGGING ---
 
-# Initialize Flask app
+print("--- Starting Application ---")
+sys.stdout.flush()
+
 app = Flask(__name__)
 
 # Get environment variables
-# These are set during deployment in a later step
 try:
     PROJECT_ID = os.environ["PROJECT_ID"]
     GCS_OUTPUT_BUCKET_NAME = os.environ["GCS_OUTPUT_BUCKET"]
 except KeyError:
-    # This check helps prevent deployment errors if variables aren't set.
-    # We will provide default values here, but they will be overridden during deployment.
-    PROJECT_ID = "your-gcp-project-id"
-    GCS_OUTPUT_BUCKET_NAME = "your-gcs-output-bucket"
-
+    PROJECT_ID = "your-gcp-project-id" # Fallback
+    GCS_OUTPUT_BUCKET_NAME = "your-gcs-output-bucket" # Fallback
 
 LOCATION = "europe-west1"
 
-# Initialize Vertex AI SDK
-vertexai.init(project=PROJECT_ID, location=LOCATION)
+try:
+    print("STEP 1: Initializing Vertex AI SDK...")
+    sys.stdout.flush()
+    vertexai.init(project=PROJECT_ID, location=LOCATION)
+    print("STEP 1: Vertex AI SDK Initialized SUCCESSFULLY.")
+    sys.stdout.flush()
 
-# Initialize Google Cloud Storage client
-storage_client = storage.Client()
-output_bucket = storage_client.bucket(GCS_OUTPUT_BUCKET_NAME)
+    print("STEP 2: Initializing Cloud Storage client...")
+    sys.stdout.flush()
+    storage_client = storage.Client()
+    output_bucket = storage_client.bucket(GCS_OUTPUT_BUCKET_NAME)
+    print("STEP 2: Cloud Storage client Initialized SUCCESSFULLY.")
+    sys.stdout.flush()
 
-# Load AI Models
-# Using a specific version is recommended for production
-gemini_model = GenerativeModel("gemini-1.0-pro-001")
-imagen_model = ImageGenerationModel.from_pretrained("imagegeneration@006")
+    print("STEP 3: Loading Gemini Model...")
+    sys.stdout.flush()
+    gemini_model = GenerativeModel("gemini-1.0-pro-001")
+    print("STEP 3: Gemini Model Loaded SUCCESSFULLY.")
+    sys.stdout.flush()
 
-# --- Helper Functions ---
+    print("STEP 4: Loading Imagen Model...")
+    sys.stdout.flush()
+    imagen_model = ImageGenerationModel.from_pretrained("imagegeneration@006")
+    print("STEP 4: Imagen Model Loaded SUCCESSFULLY.")
+    sys.stdout.flush()
+
+    print("--- Application Initialized Successfully ---")
+    sys.stdout.flush()
+
+except Exception as e:
+    # This will catch any error during initialization and print it clearly.
+    print(f"FATAL: An error occurred during initialization: {e}")
+    sys.stdout.flush()
+    raise e
+
+
+# --- Helper Functions --- (No changes below this line)
 
 def generate_gemini_prompt(general_desc, background_desc, copy_text):
     """Uses Gemini to create an optimized prompt for Imagen."""
@@ -181,6 +204,4 @@ def process_image_request():
         return jsonify({"error": "An internal error occurred.", "details": str(e)}), 500
 
 if __name__ == "__main__":
-    # This is used for local development, which we are not doing.
-    # Gunicorn runs the app in a production environment as specified in the Dockerfile.
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
