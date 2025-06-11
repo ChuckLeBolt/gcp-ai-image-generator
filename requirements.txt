@@ -1,0 +1,13 @@
+# Web server framework and production WSGI server for Cloud Run
+Flask==3.0.0
+gunicorn==21.2.0
+
+# Official Google Cloud Python SDKs
+google-cloud-aiplatform==1.45.0
+google-cloud-storage==2.14.0
+
+# Image processing library for compositing the packshot
+Pillow==10.2.0
+
+# Utility for downloading the packshot image from its URL
+requests==2.31.0
