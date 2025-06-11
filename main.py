@@ -28,7 +28,7 @@ except KeyError:
     GCS_OUTPUT_BUCKET_NAME = "your-gcs-output-bucket"
 
 
-LOCATION = "us-central1"
+LOCATION = "europe-west1"
 
 # Initialize Vertex AI SDK
 vertexai.init(project=PROJECT_ID, location=LOCATION)
