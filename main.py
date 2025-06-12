@@ -36,7 +36,7 @@ storage_client = storage.Client()
 output_bucket = storage_client.bucket(GCS_OUTPUT_BUCKET_NAME)
 
 # Load AI Models
-gemini_model = GenerativeModel("gemini-1.0-pro-001")
+gemini_model = GenerativeModel("gemini-1.0-pro")
 imagen_model = ImageGenerationModel.from_pretrained("imagegeneration@006")
 
 
