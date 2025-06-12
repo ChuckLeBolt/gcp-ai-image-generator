@@ -1,2 +1,13 @@
+# Web server framework
 Flask==3.0.0
 gunicorn==21.2.0
+
+# Official Google Cloud Python SDKs (flexible versions)
+google-cloud-aiplatform
+google-cloud-storage
+
+# Image processing library
+Pillow==10.2.0
+
+# Utility for downloading
+requests==2.31.0
