@@ -3,11 +3,9 @@ import io
 import uuid
 import requests
 import sys
-import json # We need the json library for streaming
+import json
 
-# The import for streaming responses
 from flask import Flask, request, jsonify, Response, stream_with_context
-
 from PIL import Image
 
 import vertexai
@@ -17,7 +15,7 @@ from google.cloud import storage
 
 app = Flask(__name__)
 
-# --- Initialization (remains the same) ---
+# --- Initialization ---
 try:
     PROJECT_ID = os.environ["PROJECT_ID"]
     GCS_OUTPUT_BUCKET_NAME = os.environ["GCS_OUTPUT_BUCKET"]
@@ -27,7 +25,7 @@ try:
     storage_client = storage.Client()
     output_bucket = storage_client.bucket(GCS_OUTPUT_BUCKET_NAME)
 
-    # Using the model that we proved works and is stable
+    # Using the best stable model that we proved works
     gemini_model = GenerativeModel("gemini-1.5-flash-002")
     imagen_model = ImageGenerationModel.from_pretrained("imagegeneration@006")
     print("--- Application Initialized Successfully ---")
@@ -38,9 +36,22 @@ except Exception as e:
     sys.stderr.flush()
     raise
 
-# --- Helper functions (remain the same) ---
+# --- Helper Functions ---
 def generate_gemini_prompt(general_desc, background_desc, copy_text):
-    meta_prompt = f"""You are an expert prompt engineer...""" # Content is the same
+    # THIS IS THE FULL, CORRECT PROMPT TEMPLATE
+    meta_prompt = f"""
+    You are an expert prompt engineer for a text-to-image AI model. Your task is to take the following details and combine them into a single, highly descriptive, and photorealistic prompt.
+
+    CRITICAL INSTRUCTIONS:
+    1. The final image must contain a clear, empty space in the center foreground, suitable for placing a product packshot onto it later. Do not describe or generate the product itself in the scene.
+    2. The prompt must also include a request to render the following text clearly and legibly within the scene: '{copy_text}'. The text should be well-integrated but not obscure the central empty space.
+    3. The overall style should be: {general_desc}.
+
+    BACKGROUND DETAILS:
+    - {background_desc}
+
+    Generate only the final, combined prompt. Do not add any conversational text or explanations.
+    """
     print(f"Generating Gemini prompt for: {general_desc}")
     sys.stdout.flush()
     response = gemini_model.generate_content(meta_prompt)
@@ -54,7 +65,7 @@ def generate_imagen_background(prompt):
     sys.stdout.flush()
     images = imagen_model.generate_images(prompt=prompt, number_of_images=1, aspect_ratio="1:1")
     if not images:
-        raise ValueError("Image generation failed, likely due to a safety filter.")
+        raise ValueError("Image generation failed, likely due to a safety filter. No images were returned.")
     image_bytes = images[0]._image_bytes
     background_image = Image.open(io.BytesIO(image_bytes))
     print("Imagen background generated successfully.")
@@ -100,9 +111,7 @@ def upload_to_gcs(image_pil):
     sys.stdout.flush()
     return public_url
 
-# --- NEW: Main Logic wrapped in a Generator Function ---
 def _generate_and_stream(data):
-    """This function does all the work and 'yields' the final result."""
     try:
         gemini_prompt = generate_gemini_prompt(data["general_description"], data["background_description"], data["copy"])
         background_image = generate_imagen_background(gemini_prompt)
@@ -110,7 +119,6 @@ def _generate_and_stream(data):
         final_image = composite_images(background_image, packshot_image)
         image_url = upload_to_gcs(final_image)
 
-        # Instead of returning, we 'yield' the final JSON as a string
         final_json = json.dumps({
             "success": True,
             "imageUrl": image_url,
@@ -121,27 +129,18 @@ def _generate_and_stream(data):
     except Exception as e:
         print(f"An unexpected error occurred during streaming: {e}", file=sys.stderr)
         sys.stderr.flush()
-        # Yield a JSON error message
         error_json = json.dumps({
             "error": "An internal error occurred during processing.",
             "details": str(e)
         })
         yield error_json
 
-
-# --- MODIFIED: Main Flask Route now uses the generator ---
 @app.route("/", methods=["POST"])
 def process_image_request():
-    """This endpoint now streams the response to keep the connection alive."""
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid JSON payload"}), 400
-
-    # This is the key change. We return a streaming Response.
-    # The headers are sent immediately, keeping the connection open.
-    # The _generate_and_stream function runs, and its result is sent when ready.
     return Response(stream_with_context(_generate_and_stream(data)), mimetype='application/json')
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
